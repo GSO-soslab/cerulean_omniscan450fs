@@ -2,7 +2,7 @@
 
 A ROS 2 driver for the [Cerulean Omniscan 450 FS](https://ceruleansonar.com/product/omniscan-450fs-100m-300m/) forward-scan sonar. It connects over Ethernet (TCP), configures the sonar, and publishes each ping as a profile of echo strength against range. It can also publish a first-return range found on that profile.
 
-The sonar has one fixed beam (0.8 deg horizontal, 50 deg vertical). Each ping is one line: it has no bearing, and the sonar does not report a detected range.
+The sonar has one fixed beam (0.8 deg horizontal, 50 deg vertical). Each ping is one line with no bearing.
 
 ## Packages
 
