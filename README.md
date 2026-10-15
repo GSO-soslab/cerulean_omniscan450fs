@@ -98,8 +98,6 @@ To add a method, write a class in its own file that subclasses `FirstReturnDetec
 - `peak.background_samples` is a free setting for the width.
 - The CFAR false-alarm rate is exact for exponentially distributed noise power and is tested against that. A real background will differ, so `cfar.pfa` is a design value to tune.
 
-## Notes
-
 - `brping`'s `Omniscan450.wait_message()` spins at full CPU and never times out when the sonar sends nothing over TCP. The driver reads the socket itself with `select()` and uses `brping` only for the message definitions and commands, so a silent sonar triggers a reconnect.
 - The driver reconnects after 5 s without data and sends `enable=false` on shutdown.
 - Whether the first sample sits at the start or the centre of its range bin is not documented. Check it on hardware.
