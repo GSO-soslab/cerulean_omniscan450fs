@@ -1,0 +1,45 @@
+# Cerulean Omniscan 450 FS forward-scan sonar.
+# The top-level key must match the node name given in the launch file.
+omniscan450fs_driver:
+  ros__parameters:
+    interface:
+      # IP address configured on the sonar (the driver's default is 192.168.194.90)
+      ip_address: "192.168.194.90"
+      port: 51200
+      connect_timeout_s: 5.0
+      reconnect_interval_s: 2.0
+
+    configuration:
+      # TF frame attached to all published messages
+      frame_id: "omniscan450fs_link"
+      # Scanned window, metres from the transducer. The sonar's recommended maximum range is 120 m.
+      start_m: 0.0
+      length_m: 5.0
+      # Samples across the window
+      num_samples: 600
+      # Ping rate [Hz], 0 = as fast as the sonar allows (maximum 20 Hz)
+      ping_rate_hz: 0.0
+      # 0 to 7, -1 = automatic
+      gain_index: -1
+      pulse_len_percent: 0.002
+      filter_duration_percent: 0.0015
+      sound_speed_mps: 1482.0
+
+    topics:
+      publish_profile: true
+      # First-return range (sensor_msgs/Range and Detection) from the detector below
+      publish_range: true
+
+    detection:
+      # Ignore anything closer than this (near field, ringing). The far field starts around 5 m.
+      min_range_m: 1.0
+      # 0 = no limit inside the window
+      max_range_m: 0.0
+      # A return must be this far above the ping's noise floor (median power)
+      min_snr_db: 10.0
+      # and at least this strong in absolute terms (-1000 = off)
+      min_power_db: -1000.0
+      # Consecutive samples above threshold needed, rejects single-sample spikes
+      min_width_samples: 2
+      # Beam width of the unit, horizontal, for sensor_msgs/Range (0.8 deg)
+      field_of_view_rad: 0.01396
