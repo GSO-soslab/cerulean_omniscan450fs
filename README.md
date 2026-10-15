@@ -91,13 +91,12 @@ To add a method, write a class in its own file that subclasses `FirstReturnDetec
 - `smoothing`: `moving_average` (Al-Rawi et al.) or `hann` (Bourguignon et al.). It spreads an edge over its window, so a threshold crossing can move, earlier or later depending on the threshold, by up to about half the window.
 - `median_pings`: median of the first-return range over the last N pings, which removes single-ping spikes (Al-Rawi et al. median-filter the along-track first returns). The output lags by about N/2 pings. `Detection.raw_range_m` keeps the unfiltered value.
 
-**Limits**
+**Notes**
 
-- None of this has been run on a real sonar. The methods are checked against synthetic profiles only, and the defaults need tuning on real data.
-- `peak` follows the published threshold, which is the background average, so about half the neighbouring noise samples join the return. `peak.margin_db` (not in the paper) stops that.
-- Ferretti et al. do not say how wide the background intervals are; `peak.background_samples` is a free setting.
+- The methods are checked against synthetic profiles only, and the defaults need tuning on real data.
+- `peak` follows the published threshold, which is the background average, so about half the neighbouring noise samples join the return. `peak.margin_db` stops that.
+- `peak.background_samples` is a free setting for the width.
 - The CFAR false-alarm rate is exact for exponentially distributed noise power and is tested against that. A real background will differ, so `cfar.pfa` is a design value to tune.
-- For a forward-looking mount a seabed return is not a single range, because the beam is 50 deg tall.
 
 ## Notes
 
