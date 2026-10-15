@@ -1,0 +1,93 @@
+# Cerulean Omniscan 450 FS forward-scan sonar.
+# The top-level key must match the node name given in the launch file.
+omniscan450fs_driver:
+  ros__parameters:
+    interface:
+      # IP address configured on the sonar (the driver's default is 192.168.194.90)
+      ip_address: "192.168.194.90"
+      port: 51200
+      connect_timeout_s: 5.0
+      reconnect_interval_s: 2.0
+
+    configuration:
+      # TF frame attached to all published messages
+      frame_id: "omniscan450fs_link"
+      # Scanned window, metres from the transducer. The sonar's recommended maximum range is 120 m.
+      start_m: 0.0
+      length_m: 5.0
+      # Samples across the window
+      num_samples: 600
+      # Ping rate [Hz], 0 = as fast as the sonar allows (maximum 20 Hz)
+      ping_rate_hz: 0.0
+      # 0 to 7, -1 = automatic
+      gain_index: -1
+      pulse_len_percent: 0.002
+      filter_duration_percent: 0.0015
+      sound_speed_mps: 1482.0
+
+    topics:
+      publish_profile: true
+      # First-return range (sensor_msgs/Range and Detection) from the detector below
+      publish_range: true
+      # The first return as a one-ray sensor_msgs/LaserScan (needs publish_range). One bearing,
+      # because the beam is fixed; ranges[0] is the range or inf, intensities[0] the peak power in dB.
+      publish_scan: false
+
+    # First-return detection. The sonar only reports echo strength, so the range is found on
+    # the profile. Each method is a class in the range_detection package with its short source.
+    detection:
+      # Which return counts as the first return:
+      #   threshold  first run above noise floor + min_snr_db (IHO C-13 ch. 3 amplitude detection)
+      #   peak       strongest peak, wide enough (Ferretti et al., single beam seabed pick)
+      #   cfar       adaptive threshold from the nearer cells, constant false alarm rate
+      #   rise       first rise between consecutive smoothed samples (Al-Rawi et al., OCEANS 2017)
+      method: "threshold"
+      # Where inside that return the range is placed (IHO C-13 ch. 3):
+      #   leading_edge | peak (maximum amplitude) | centroid (centre of mass)
+      reference: "leading_edge"
+
+      # Ignore anything closer than this (near field, ringing). The far field starts around 5 m.
+      min_range_m: 1.0
+      # 0 = no limit inside the window
+      max_range_m: 0.0
+      # A return must be at least this strong in absolute terms (-1000 = off)
+      min_power_db: -1000.0
+      # Consecutive samples needed, rejects single-sample spikes
+      min_width_samples: 2
+
+      # Range correction before detecting (Ferretti et al. eq. 2), off by default. It is not
+      # known whether the sonar already applies range-dependent gain, check on hardware.
+      tvg_enabled: false
+      tvg_spreading_db: 20.0          # dB per decade of range (a two-way target echo may need 40)
+      tvg_absorption_db_per_m: 0.0    # one-way absorption alpha
+      tvg_ref_range_m: 1.0
+      # Smoothing before detecting: none | moving_average | hann. It can move a threshold
+      # crossing by up to about half the window.
+      smoothing: "none"
+      smooth_samples: 5
+
+      # Median of the first-return range over the last N pings, removes single-ping spikes
+      # (Al-Rawi et al.). 1 = off. The output lags by about N/2 pings.
+      median_pings: 1
+
+      # Beam width of the unit, horizontal, for sensor_msgs/Range (0.8 deg)
+      field_of_view_rad: 0.01396
+
+      # Settings of each method. Only the selected method is used, all are checked.
+      threshold:
+        # a return must be this far above the noise floor (median power). 10 dB is the value
+        # reported for water column and bottom echoes after loss compensation.
+        min_snr_db: 10.0
+      peak:
+        min_snr_db: 10.0
+        # samples averaged on each side of the maximum (the paper gives no size)
+        background_samples: 20
+        # not in the paper: margin over that average that keeps the return from growing into
+        # the noise. 0 = as published.
+        margin_db: 0.0
+      cfar:
+        train_cells: 20       # reference cells, from the nearer side
+        guard_cells: 2        # cells skipped next to the cell under test
+        pfa: 0.001            # design false alarm probability per cell
+      rise:
+        rise_db: 6.0          # minimum rise between consecutive (smoothed) samples
