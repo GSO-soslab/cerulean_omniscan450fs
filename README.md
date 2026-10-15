@@ -7,7 +7,21 @@ The sonar has one fixed beam (0.8 deg horizontal, 50 deg vertical). Each ping is
 ## Packages
 
 - `cerulean_omniscan450fs_interfaces`: the `Profile` and `Detection` messages.
-- `cerulean_omniscan450fs_driver`: the driver node, the first-return detector, and a fake sonar for testing without hardware.
+- `cerulean_omniscan450fs_driver`: the driver node, the first-return detection, and a fake sonar for testing without hardware.
+
+```
+cerulean_omniscan450fs_driver/
+  omniscan450fs_node.py       the ROS node
+  sonar_io.py                 connection to the sonar, with real read timeouts
+  fake_sonar.py               a fake sonar for testing without hardware
+  range_detection/
+    threshold.py peak.py cfar.py rise.py    one first-return method per file, each with its source
+    preprocessing.py          range correction and smoothing
+    reference.py              where inside the return the range is placed
+    tracker.py                median over pings
+    finder.py                 puts them together
+    base.py                   shared types and the method registry
+```
 
 ## Dependencies
 
@@ -54,19 +68,41 @@ Topics are relative to the node, so several sonars can run side by side under di
 
 ## First-return detection
 
-The sonar returns echo strength only, so the range is found on the profile:
+The sonar returns echo strength only, so the range is found on the profile. Two choices are made separately, both settable at runtime (`ros2 param set`; write a small number as `1.0e-9`, the command line reads `1e-9` as a string).
 
-1. The noise floor is the median power inside the range gate.
-2. The threshold is the larger of `noise floor + min_snr_db` and `min_power_db`.
-3. The first return is the first run of `min_width_samples` consecutive samples above the threshold inside `[min_range_m, max_range_m]`. Its range is the leading edge of the run.
+**`detection.method`, which return is the first return.** Each method is its own class in `range_detection/` with its source in the file header, and its own settings under `detection.<method>.`.
 
-This is a first version. It does not compensate for range-dependent loss, use an adaptive (CFAR) threshold, or track returns across pings. Tune it on real profiles before relying on it. For a forward-looking mount, a seabed return is not a single range, because the beam is 50 deg tall.
+| Method | What it does | Source |
+|---|---|---|
+| `threshold` | First run of samples above the ping's noise floor (median) plus `min_snr_db`. | Amplitude detection, IHO C-13 ch. 3. The 10 dB default is the value reported for water-column and bottom echoes after loss compensation, de Moustier (OCEANS 2013) as cited by Al-Rawi et al. |
+| `peak` | The strongest peak in the gate, accepted if wide enough. Its threshold is the smaller of the average level before and after it. This finds the strongest return, not the nearest. | Ferretti et al., single beam seabed pick |
+| `cfar` | Each sample is tested against a threshold from the nearer reference cells so the false-alarm rate stays constant. Textbook 1-D cell-averaging form, not the K-distribution estimator of the paper. | Abu & Diamant, IET Radar Sonar Navig. 2020 |
+| `rise` | First place where the smoothed profile rises by `rise_db` between consecutive samples. | Al-Rawi et al., OCEANS 2017 (moving-average method) |
+
+To add a method, write a class in its own file that subclasses `FirstReturnDetector` with a `name`, a `Params` dataclass and a `find()`, decorate it with `@register`, and import it in `range_detection/__init__.py`. The node declares its parameters from the dataclass, so nothing else changes. A test checks that the YAML lists exactly the code's defaults.
+
+**`detection.reference`, where inside that return the range is placed.** `leading_edge` (first arrival), `peak` (maximum amplitude) or `centroid` (centre of mass of the amplitude), the three amplitude detection methods of IHO C-13 ch. 3. The IHO text notes the leading edge degrades as the incidence angle grows and the rise gets less sharp, which is likely for this sonar's 50 deg tall beam at grazing incidence.
+
+**Optional preprocessing**
+
+- `tvg_enabled`: range correction `spreading * log10(R/Rref) + 2*alpha*R` (Ferretti et al. eq. 2). Off by default. Whether the sonar already applies range-dependent gain is not known.
+- `smoothing`: `moving_average` (Al-Rawi et al.) or `hann` (Bourguignon et al.). It spreads an edge over its window, so a threshold crossing can move, earlier or later depending on the threshold, by up to about half the window.
+- `median_pings`: median of the first-return range over the last N pings, which removes single-ping spikes (Al-Rawi et al. median-filter the along-track first returns). The output lags by about N/2 pings. `Detection.raw_range_m` keeps the unfiltered value.
+
+**Limits**
+
+- None of this has been run on a real sonar. The methods are checked against synthetic profiles only, and the defaults need tuning on real data.
+- `peak` follows the published threshold, which is the background average, so about half the neighbouring noise samples join the return. `peak.margin_db` (not in the paper) stops that.
+- Ferretti et al. do not say how wide the background intervals are; `peak.background_samples` is a free setting.
+- The CFAR false-alarm rate is exact for exponentially distributed noise power and is tested against that. A real background will differ, so `cfar.pfa` is a design value to tune.
+- For a forward-looking mount a seabed return is not a single range, because the beam is 50 deg tall.
 
 ## Notes
 
 - `brping`'s `Omniscan450.wait_message()` spins at full CPU and never times out when the sonar sends nothing over TCP. The driver reads the socket itself with `select()` and uses `brping` only for the message definitions and commands, so a silent sonar triggers a reconnect.
 - The driver reconnects after 5 s without data and sends `enable=false` on shutdown.
 - Whether the first sample sits at the start or the centre of its range bin is not documented. Check it on hardware.
+- To run several sonars together the SDK has `control_set_sync_channel_number(channel, total)`, which the driver does not call yet. What it does on the sonar has not been checked.
 
 ## Tests
 

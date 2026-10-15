@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip('brping')
 
 from cerulean_omniscan450fs_driver.fake_sonar import FakeOmniscan450FS   # noqa: E402
-from cerulean_omniscan450fs_driver.range_detector import detect_first_return   # noqa: E402
+from cerulean_omniscan450fs_driver.range_detection import RangeFinder   # noqa: E402
 from cerulean_omniscan450fs_driver.sonar_io import SonarLink   # noqa: E402
 
 SETTINGS = dict(start_mm=0, length_mm=30000, msec_per_ping=0, pulse_len_percent=0.002,
@@ -49,7 +49,7 @@ def test_connect_configure_read_and_detect(fake):
         assert p.num_results == 600 and len(p.power_db) == 600 and p.length_mm == 30000
         assert p.sos_dmps == 14820 and p.acoustic_frequency_hz == 450000
 
-        det = detect_first_return(p.power_db, p.start_mm / 1000.0, p.length_mm / 1000.0)
+        det = RangeFinder().detect(p.power_db, p.start_mm / 1000.0, p.length_mm / 1000.0)
         assert det.detected and det.range_m == pytest.approx(12.0, abs=0.1)
     finally:
         link.close()

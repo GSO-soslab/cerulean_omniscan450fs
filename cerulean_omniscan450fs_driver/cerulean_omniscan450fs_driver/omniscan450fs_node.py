@@ -21,7 +21,8 @@ from sensor_msgs.msg import Range
 
 from cerulean_omniscan450fs_interfaces.msg import Detection as DetectionMsg
 from cerulean_omniscan450fs_interfaces.msg import Profile
-from cerulean_omniscan450fs_driver.range_detector import DetectorConfig, detect_first_return
+from cerulean_omniscan450fs_driver.range_detection import (
+    FinderConfig, RangeFinder, RangeTracker, default_flat)
 from cerulean_omniscan450fs_driver.sonar_io import SonarLink
 
 # Parameters that change what the sonar is told to do, as opposed to how we process pings.
@@ -64,16 +65,18 @@ class Omniscan450FSDriver(Node):
         d('topics.publish_profile', True)
         d('topics.publish_range', True)
 
-        d('detection.min_range_m', 1.0)
-        d('detection.max_range_m', 0.0)                 # 0 = whole window
-        d('detection.min_snr_db', 10.0)
-        d('detection.min_power_db', -1000.0)            # absolute floor, very low = off
-        d('detection.min_width_samples', 2)
+        # First-return detection, see the range_detection package. Every setting of every
+        # method is declared from its defaults, so a new method needs nothing added here.
+        for key, value in default_flat().items():
+            d(f'detection.{key}', value)
+        d('detection.median_pings', 1)                  # median of the last N pings, 1 = off
         d('detection.field_of_view_rad', math.radians(0.8))
 
         self._lock = threading.Lock()
         self._cfg = self._read_params()
         self._reconfigure = threading.Event()
+        self._finder = RangeFinder(self._finder_config(self._cfg))
+        self._tracker = RangeTracker(self._cfg['detection.median_pings'])
 
         self._pub_profile = self.create_publisher(Profile, '~/profile', 10)
         self._pub_range = self.create_publisher(Range, '~/range', 10)
@@ -104,6 +107,10 @@ class Omniscan450FSDriver(Node):
 
         with self._lock:
             self._cfg = candidate
+            if any(name.startswith('detection.') for name in changed):
+                self._finder = RangeFinder(self._finder_config(candidate))
+                # ranges from another method or window are not comparable
+                self._tracker = RangeTracker(candidate['detection.median_pings'])
         if changed.intersection(SONAR_PARAMS):
             self._reconfigure.set()
         return SetParametersResult(successful=True)
@@ -122,9 +129,20 @@ class Omniscan450FSDriver(Node):
             return 'configuration.gain_index must be -1 (auto) or 0 to 7'
         if c['configuration.sound_speed_mps'] <= 0.0:
             return 'configuration.sound_speed_mps must be > 0'
-        if c['detection.min_width_samples'] < 1:
-            return 'detection.min_width_samples must be >= 1'
+        if c['detection.median_pings'] < 1:
+            return 'detection.median_pings must be >= 1'
+        try:
+            Omniscan450FSDriver._finder_config(c)
+        except ValueError as e:
+            return f'detection: {e}'
         return ''
+
+    @staticmethod
+    def _finder_config(c):
+        flat = {k[len('detection.'):]: v for k, v in c.items() if k.startswith('detection.')}
+        flat.pop('median_pings')
+        flat.pop('field_of_view_rad')
+        return FinderConfig.from_flat(flat)
 
     def _snapshot(self):
         with self._lock:
@@ -202,7 +220,8 @@ class Omniscan450FSDriver(Node):
                     if profile is None:
                         silent += 1
                         if silent >= MAX_SILENT_READS:
-                            self._log_throttled('warn', 'No data from sonar, reconnecting', 'silent')
+                            self._log_throttled('warn', 'No data from sonar, reconnecting',
+                                                'silent')
                             break
                         continue
                     silent = 0
@@ -243,13 +262,9 @@ class Omniscan450FSDriver(Node):
             self._pub_profile.publish(p)
 
         if c['topics.publish_range']:
-            cfg = DetectorConfig(
-                min_range_m=c['detection.min_range_m'],
-                max_range_m=c['detection.max_range_m'],
-                min_snr_db=c['detection.min_snr_db'],
-                min_power_db=c['detection.min_power_db'],
-                min_width_samples=c['detection.min_width_samples'])
-            det = detect_first_return(power_db, start_m, length_m, cfg)
+            with self._lock:
+                finder = self._finder
+            det = self._track(finder.detect(power_db, start_m, length_m))
 
             dm = DetectionMsg()
             dm.header.stamp = stamp
@@ -257,6 +272,7 @@ class Omniscan450FSDriver(Node):
             dm.ping_number = int(msg.ping_number)
             dm.detected = det.detected
             dm.range_m = det.range_m
+            dm.raw_range_m = det.raw_range_m
             dm.peak_power_db = det.peak_power_db
             dm.threshold_db = det.threshold_db
             dm.snr_db = det.snr_db
@@ -268,10 +284,16 @@ class Omniscan450FSDriver(Node):
             r.header.frame_id = frame
             r.radiation_type = Range.ULTRASOUND
             r.field_of_view = float(c['detection.field_of_view_rad'])
-            r.min_range = float(cfg.min_range_m)
-            r.max_range = float(cfg.max_range_m if cfg.max_range_m > 0.0 else start_m + length_m)
+            common = finder.config.common
+            r.min_range = float(common.min_range_m)
+            r.max_range = float(common.max_range_m if common.max_range_m > 0.0
+                                else start_m + length_m)
             r.range = det.range_m if det.detected else math.inf
             self._pub_range.publish(r)
+
+    def _track(self, detection):
+        with self._lock:
+            return self._tracker.update(detection)
 
     # -- shutdown -----------------------------------------------------------------------
     def shutdown(self):

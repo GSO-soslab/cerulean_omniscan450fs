@@ -8,9 +8,7 @@ messages with synthetic noise and optional targets.
 """
 
 import argparse
-import math
 import socket
-import struct
 import threading
 import time
 

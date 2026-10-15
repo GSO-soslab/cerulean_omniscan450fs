@@ -46,7 +46,13 @@ class SonarLink:
         self.host = host
         self.port = port
         self._dev = Omniscan450()
-        self._dev.connect_tcp(host, port, connect_timeout)    # raises if it cannot connect
+        try:
+            self._dev.connect_tcp(host, port, connect_timeout)
+        except Exception:
+            # brping creates the socket before connecting and leaves it open on failure
+            if self._dev.iodev is not None:
+                self._dev.iodev.close()
+            raise
         self._sock = self._dev.iodev
         self._parser = pingmessage.PingParser()
         self._queue = collections.deque()
