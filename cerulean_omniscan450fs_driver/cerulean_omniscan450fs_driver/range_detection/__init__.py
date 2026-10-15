@@ -18,12 +18,13 @@ from . import cfar, peak, rise, threshold  # noqa: F401
 from .base import DETECTORS, CommonConfig, Detection, FirstReturnDetector, Region, register
 from .finder import FinderConfig, RangeFinder, default_flat, sample_range
 from .preprocessing import SMOOTHING, Preprocessing, smooth_profile, tvg_correction_db
+from .rayscan import RayScan, single_ray_scan
 from .reference import REFERENCES, reference_range
 from .tracker import RangeTracker
 
 __all__ = [
     'DETECTORS', 'REFERENCES', 'SMOOTHING', 'CommonConfig', 'Detection', 'FinderConfig',
-    'FirstReturnDetector', 'Preprocessing', 'RangeFinder', 'RangeTracker', 'Region',
-    'default_flat', 'reference_range', 'register', 'sample_range', 'smooth_profile',
-    'tvg_correction_db',
+    'FirstReturnDetector', 'Preprocessing', 'RangeFinder', 'RangeTracker', 'RayScan', 'Region',
+    'default_flat', 'reference_range', 'register', 'sample_range', 'single_ray_scan',
+    'smooth_profile', 'tvg_correction_db',
 ]

@@ -7,6 +7,7 @@ Topics (relative to the node, so two units do not collide):
   ~/profile    cerulean_omniscan450fs_interfaces/Profile
   ~/range      sensor_msgs/Range        (publish_range) range to the first return, inf if none
   ~/detection  cerulean_omniscan450fs_interfaces/Detection   (publish_range) with confidence
+  ~/scan       sensor_msgs/LaserScan    (publish_scan) the first return as a one-ray scan
 """
 
 import math
@@ -17,12 +18,12 @@ import rclpy
 from rcl_interfaces.msg import SetParametersResult
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from sensor_msgs.msg import Range
+from sensor_msgs.msg import LaserScan, Range
 
 from cerulean_omniscan450fs_interfaces.msg import Detection as DetectionMsg
 from cerulean_omniscan450fs_interfaces.msg import Profile
 from cerulean_omniscan450fs_driver.range_detection import (
-    FinderConfig, RangeFinder, RangeTracker, default_flat)
+    FinderConfig, RangeFinder, RangeTracker, default_flat, single_ray_scan)
 from cerulean_omniscan450fs_driver.sonar_io import SonarLink
 
 # Parameters that change what the sonar is told to do, as opposed to how we process pings.
@@ -64,6 +65,7 @@ class Omniscan450FSDriver(Node):
 
         d('topics.publish_profile', True)
         d('topics.publish_range', True)
+        d('topics.publish_scan', False)
 
         # First-return detection, see the range_detection package. Every setting of every
         # method is declared from its defaults, so a new method needs nothing added here.
@@ -81,6 +83,7 @@ class Omniscan450FSDriver(Node):
         self._pub_profile = self.create_publisher(Profile, '~/profile', 10)
         self._pub_range = self.create_publisher(Range, '~/range', 10)
         self._pub_detection = self.create_publisher(DetectionMsg, '~/detection', 10)
+        self._pub_scan = self.create_publisher(LaserScan, '~/scan', 10)
 
         self.add_on_set_parameters_callback(self._on_parameters)
 
@@ -290,6 +293,20 @@ class Omniscan450FSDriver(Node):
                                 else start_m + length_m)
             r.range = det.range_m if det.detected else math.inf
             self._pub_range.publish(r)
+
+            if c['topics.publish_scan']:
+                ray = single_ray_scan(det, r.min_range, r.max_range, r.field_of_view)
+                scan = LaserScan()
+                scan.header.stamp = stamp
+                scan.header.frame_id = frame
+                scan.angle_min = ray.angle_min
+                scan.angle_max = ray.angle_max
+                scan.angle_increment = ray.angle_increment
+                scan.range_min = ray.range_min
+                scan.range_max = ray.range_max
+                scan.ranges = ray.ranges
+                scan.intensities = ray.intensities
+                self._pub_scan.publish(scan)
 
     def _track(self, detection):
         with self._lock:

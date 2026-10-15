@@ -19,6 +19,7 @@ cerulean_omniscan450fs_driver/
     preprocessing.py          range correction and smoothing
     reference.py              where inside the return the range is placed
     tracker.py                median over pings
+    rayscan.py                the result as a one-ray LaserScan
     finder.py                 puts them together
     base.py                   shared types and the method registry
 ```
@@ -63,6 +64,7 @@ Topics are relative to the node, so several sonars can run side by side under di
 | `~/profile` | `cerulean_omniscan450fs_interfaces/Profile` | One ping: echo strength in dB from the nearest sample to the farthest, with the ping metadata. Sample `i` lies at `start_m + i * length_m / num_samples` |
 | `~/range` | `sensor_msgs/Range` | Range to the first return, `inf` if there is none (with `topics.publish_range`) |
 | `~/detection` | `cerulean_omniscan450fs_interfaces/Detection` | The first-return result with peak power, threshold, SNR and width |
+| `~/scan` | `sensor_msgs/LaserScan` | The first return as a one-ray scan (with `topics.publish_scan`, off by default). One bearing, because the beam is fixed: `ranges[0]` is the range or `inf`, `intensities[0]` the peak power in dB. A fan of rays needs the beam swept, with each ping's bearing taken from outside the sonar (vehicle yaw or a pan mount). |
 
 `header.stamp` is the time the ping was received by the host. The sonar only reports time since its own power-up, which is in `Profile.sonar_time_ms`.
 

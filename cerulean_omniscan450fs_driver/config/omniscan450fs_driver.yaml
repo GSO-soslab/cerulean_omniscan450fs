@@ -29,6 +29,9 @@ omniscan450fs_driver:
       publish_profile: true
       # First-return range (sensor_msgs/Range and Detection) from the detector below
       publish_range: true
+      # The first return as a one-ray sensor_msgs/LaserScan (needs publish_range). One bearing,
+      # because the beam is fixed; ranges[0] is the range or inf, intensities[0] the peak power in dB.
+      publish_scan: false
 
     # First-return detection. The sonar only reports echo strength, so the range is found on
     # the profile. Each method is a class in the range_detection package with its short source.
