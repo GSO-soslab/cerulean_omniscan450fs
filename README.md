@@ -112,6 +112,5 @@ To add a method, write a class in its own file that subclasses `FirstReturnDetec
 cd cerulean_omniscan450fs_driver && python3 -m pytest test
 ```
 
-## Acknowledgement
 
-Based on the protocol use in [cerulean-omniscan450-frontscan-ros2-driver](https://github.com/Aatmaj9/cerulean-omniscan450-frontscan-ros2-driver) (MIT, Aatmaj Bhayani) and the [Blue Robotics ping-python](https://github.com/bluerobotics/ping-python) library. The package layout follows [cerulean_surveyor_mbes](https://github.com/GSO-soslab/cerulean_surveyor_mbes).
+
